@@ -642,24 +642,72 @@ function speak(text) {
 // ═══════════════════════════════════════════════════
 //  音效
 // ═══════════════════════════════════════════════════
-function playTone(freq, dur, type = 'sine', vol = 0.15) {
+//  音效系统（iOS Safari 兼容，通过 AudioBuffer 播放）
+// ═══════════════════════════════════════════════════
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// WAV 二进制合成（生成短音效数据）
+function makeWav(freq, dur, vol, freqEnd = null) {
+  const rate = 16000;
+  const samples = Math.ceil(rate * dur);
+  const buf = new ArrayBuffer(44 + samples * 2);
+  const v = new DataView(buf);
+  // RIFF header
+  v.setUint32(0, 0x52494646, false);
+  v.setUint32(4, 36 + samples * 2, false);
+  v.setUint32(8, 0x57415645, false);
+  v.setUint32(12, 0x666D7420, false);
+  v.setUint32(16, 16, false);
+  v.setUint16(20, 1, false);
+  v.setUint16(22, 1, false);
+  v.setUint32(24, rate, false);
+  v.setUint32(28, rate * 2, false);
+  v.setUint16(32, 2, false);
+  v.setUint16(34, 16, false);
+  v.setUint32(36, 0x64617461, false);
+  v.setUint32(40, samples * 2, false);
+  // 样本数据（ADSR 包络）
+  for (let i = 0; i < samples; i++) {
+    const t = i / rate;
+    const env = Math.min(1, t / 0.005) * Math.max(0, 1 - (t - dur + 0.01) / 0.01);
+    const f = freqEnd ? freq + (freqEnd - freq) * (t / dur) : freq;
+    const s = Math.sin(2 * Math.PI * f * t) * vol * env;
+    v.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, s * 32767)), true);
+  }
+  return buf;
+}
+
+function playWav(freq, dur, vol = 0.4, freqEnd = null) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.connect(g); g.connect(ctx.destination);
-    o.type = type; o.frequency.setValueAtTime(freq, ctx.currentTime);
-    g.gain.setValueAtTime(vol, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
-    o.start(ctx.currentTime); o.stop(ctx.currentTime + dur);
+    const ctx = getAudioCtx();
+    const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / ctx.sampleRate;
+      const env = Math.min(1, t / 0.005) * Math.max(0, 1 - (t - dur + 0.01) / 0.01);
+      const f = freqEnd ? freq + (freqEnd - freq) * (t / dur) : freq;
+      d[i] = Math.sin(2 * Math.PI * f * t) * vol * env;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start();
   } catch(e) {}
 }
-function playClick()   { playTone(800, 0.05, 'sine', 0.1); }
+
+// 各音效
+function playClick()   { playWav(900, 0.06, 0.3); }
 function playCorrect() {
-  playTone(523.25, 0.15, 'sine', 0.3);
-  setTimeout(() => playTone(659.25, 0.15, 'sine', 0.3), 100);
-  setTimeout(() => playTone(783.99, 0.25, 'sine', 0.3), 200);
+  playWav(523, 0.18, 0.5);          // C5
+  setTimeout(() => playWav(659, 0.18, 0.5), 110);  // E5
+  setTimeout(() => playWav(784, 0.3,  0.5), 220);  // G5
 }
-function playWrong()   { playTone(180, 0.3, 'sawtooth', 0.25); }
+function playWrong()   { playWav(200, 0.25, 0.4, 150); }
 
 // ═══════════════════════════════════════════════════
 //  题目生成
