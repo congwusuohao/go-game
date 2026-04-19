@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>萌趣算术</title>
 <style>
+/* 禁用文字选中、禁止长按弹出菜单/调用 */
+* {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-callout: none;
+  -webkit-touch-callout: none;
+}
+html, body {
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
 :root {
   --bg: #FFF8E7;
   --cell-off: #E8E0D0;
