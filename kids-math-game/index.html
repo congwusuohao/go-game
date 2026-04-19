@@ -988,17 +988,12 @@ function onCellClick(e) {
     if (!isLeft) { playClick(); speak('请在左边标记'); return; }
     if (!leftOn[idx]) { playClick(); speak('只能标记亮格'); return; }
     playClick();
-    const col = Math.floor(idx / PER_COL);
-    const colStart = col * PER_COL;
-    const colEnd = Math.min(colStart + PER_COL, leftInitTotal);
     if (subtrahendMarked.has(idx)) {
-      // 已标记 → 该格及以下全部取消标记（向下 = 升 index）
-      for (let i = idx; i < colEnd; i++) subtrahendMarked.delete(i);
+      // 已标记 → 取消该格标记
+      subtrahendMarked.delete(idx);
     } else {
-      // 未标记 → 该格及以上已点亮格子全部标记（向上 = 降 index）
-      for (let i = idx; i >= colStart; i--) {
-        if (leftOn[i]) subtrahendMarked.add(i);
-      }
+      // 未标记 → 标记该格
+      subtrahendMarked.add(idx);
     }
     renderCells();
     checkFillSubtrahend();
