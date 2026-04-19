@@ -77,7 +77,7 @@ body {
 .turn-indicator.inactive { background: transparent; box-shadow: none; animation: none; }
 @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.15); } }
 
-.stat-group { display: flex; gap: 5px; flex-shrink: 0; min-width: 120px; justify-content: flex-end; }
+.stat-group { display: flex; flex-wrap: wrap; gap: 5px; flex-shrink: 0; justify-content: flex-end; }
 .stat-chip { font-size: 0.7rem; color: #5c4a2f; background: rgba(139,105,20,0.15); padding: 2px 7px; border-radius: 10px; white-space: nowrap; min-width: 52px; text-align: center; }
 .stat-chip span { font-weight: 600; }
 
@@ -231,6 +231,7 @@ body {
                     <div class="stat-group">
                         <span class="stat-chip">围: <span id="blackTerr">0</span></span>
                         <span class="stat-chip">提: <span id="blackCaptures">0</span></span>
+                        <span class="stat-chip">子: <span id="blackStones">0</span></span>
                     </div>
                 </div>
                 <div class="player-row">
@@ -242,6 +243,7 @@ body {
                     <div class="stat-group">
                         <span class="stat-chip">围: <span id="whiteTerr">0</span></span>
                         <span class="stat-chip">提: <span id="whiteCaptures">0</span></span>
+                        <span class="stat-chip">子: <span id="whiteStones">0</span></span>
                     </div>
                 </div>
             </div>
@@ -489,17 +491,22 @@ function floodFillTerritory(startR, startC, visited) {
             }
         });
     }
-    // determine owner: only one side can surround a territory
-    let owner = 0;
-    outer: for (const [rr, cc] of cells) {
+    // determine owner: territory belongs to a player ONLY if it is completely surrounded
+    // by that player's stones (no stones of the other player touch this territory)
+    let touchesBlack = false, touchesWhite = false;
+    for (const [rr, cc] of cells) {
         for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
             const nr = rr+dr, nc = cc+dc;
             if (nr < 0 || nr >= state.boardSize || nc < 0 || nc >= state.boardSize) continue;
             const v = state.board[nr][nc];
-            if (v === 1) { owner = 1; break outer; }
-            if (v === 2) { owner = 2; break outer; }
+            if (v === 1) touchesBlack = true;
+            if (v === 2) touchesWhite = true;
         }
     }
+    // Only assign if exactly one side touches it (neutral / contested = no one gets it)
+    let owner = 0;
+    if (touchesBlack && !touchesWhite) owner = 1;
+    else if (touchesWhite && !touchesBlack) owner = 2;
     return {count: cells.length, owner};
 }
 
@@ -530,8 +537,10 @@ function computeLiveTerritory() {
     }
 
     return {
-        blackTerr: blackStones + blackTerr,
-        whiteTerr: whiteStones + whiteTerr,
+        blackStones,
+        whiteStones,
+        blackTerr: blackTerr,
+        whiteTerr: whiteTerr,
         blackTerrOnly: blackTerr,
         whiteTerrOnly: whiteTerr
     };
@@ -1200,9 +1209,11 @@ function updateUI() {
     whiteCapturesEl.textContent = state.captures[2];
     moveNumberEl.textContent = `第 ${state.moveNumber} 手`;
 
-    const {blackTerr, whiteTerr} = computeLiveTerritory();
+    const {blackStones, whiteStones, blackTerr, whiteTerr} = computeLiveTerritory();
     document.getElementById('blackTerr').textContent = blackTerr;
     document.getElementById('whiteTerr').textContent = whiteTerr;
+    document.getElementById('blackStones').textContent = blackStones;
+    document.getElementById('whiteStones').textContent = whiteStones;
 
     if (!state.gameEnded) {
         statusMessageEl.textContent = `${state.currentPlayer === 1 ? '黑棋' : '白棋'}落子`;
