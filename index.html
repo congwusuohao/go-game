@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>围棋</title>
+<style>
+:root {
+    --text: #fff;
+    --accent: #c41e3a;
+    --stone-black: #1a1a1a;
+    --stone-white: #f5f5f5;
+    --wood-light: #e8c99b;
+    --wood-medium: #c49a6c;
+    --wood-dark: #7a5c3e;
+    --wood-shadow: #5c3d1e;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Noto Sans SC', 'PingFang SC', sans-serif;
+    background: linear-gradient(135deg, #1a1510 0%, #2d2418 50%, #1a1510 100%);
+    height: 100vh; overflow: hidden; color: var(--text); display: flex;
+}
+.container { flex: 1; display: flex; gap: 10px; padding: 8px; overflow: hidden; min-height: 0; }
+
+/* ====== 侧边栏 ====== */
+.sidebar {
+    width: 200px; background: linear-gradient(180deg, var(--wood-light) 0%, var(--wood-medium) 100%);
+    border-radius: 12px; padding: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    border: 2px solid var(--wood-dark); display: flex; flex-direction: column;
+    gap: 12px; overflow-y: auto; flex-shrink: 0;
+}
+
+/* 面板切换核心 */
+.hidden { display: none !important; }
+.setup-panel, .game-panel { display: flex; flex-direction: column; gap: 12px; }
+
+/* 设置面板 */
+.logo { text-align: center; padding-bottom: 10px; border-bottom: 2px solid var(--wood-dark); }
+.logo h1 { font-size: 1.8rem; font-weight: 700; color: var(--wood-shadow); letter-spacing: 4px; }
+.logo .subtitle { font-size: 0.7rem; color: #8a6a4f; margin-top: 2px; letter-spacing: 1px; }
+.section-title { font-size: 0.78rem; font-weight: 600; color: var(--wood-shadow); margin-bottom: 6px; }
+.mode-buttons, .size-buttons { display: flex; gap: 5px; }
+.size-buttons { display: grid; grid-template-columns: repeat(3, 1fr); }
+.mode-btn, .size-btn {
+    flex: 1; padding: 7px 3px; background: rgba(139,105,20,0.1);
+    border: 2px solid var(--wood-dark); border-radius: 6px;
+    cursor: pointer; font-size: 0.78rem; font-weight: 500;
+    transition: all 0.2s ease; text-align: center;
+}
+.mode-btn:hover, .size-btn:hover { background: rgba(139,105,20,0.2); }
+.mode-btn.active, .size-btn.active { background: var(--wood-dark); color: var(--wood-light); }
+.start-btn {
+    padding: 11px; font-size: 0.95rem; font-weight: 600;
+    background: var(--wood-dark); color: var(--wood-light);
+    border: none; border-radius: 8px; cursor: pointer;
+    margin-top: 4px; transition: all 0.2s ease;
+}
+.start-btn:hover { transform: translateY(-2px); background: var(--wood-shadow); }
+
+/* 游戏面板 */
+.game-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 2px solid var(--wood-dark); }
+.game-mode-label { font-size: 0.78rem; font-weight: 600; color: var(--wood-shadow); }
+.back-btn { background: none; border: 1px solid var(--wood-dark); border-radius: 6px; padding: 3px 7px; cursor: pointer; font-size: 0.85rem; }
+
+.player-info { background: rgba(0,0,0,0.05); border-radius: 10px; padding: 10px; }
+.player-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(139,105,20,0.2); flex-wrap: nowrap; }
+.player-row:last-child { border-bottom: none; }
+.player-label { display: flex; align-items: center; gap: 7px; font-size: 0.82rem; flex-shrink: 0; }
+.stone-icon { width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 2px 3px rgba(0,0,0,0.3); }
+.stone-icon.black { background: radial-gradient(circle at 30% 30%, #4a4a4a, var(--stone-black)); }
+.stone-icon.white { background: radial-gradient(circle at 30% 30%, #fff, var(--stone-white)); border: 1px solid rgba(0,0,0,0.1); }
+.current-turn { display: none; }
+.turn-indicator { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-left: 6px; transition: all 0.3s ease; }
+.turn-indicator.active-black { background: var(--stone-black); box-shadow: 0 0 8px 3px rgba(26,26,26,0.6); animation: pulse 2s infinite; }
+.turn-indicator.active-white { background: var(--stone-white); box-shadow: 0 0 8px 3px rgba(245,245,245,0.8); border: 1px solid rgba(0,0,0,0.2); animation: pulse 2s infinite; }
+.turn-indicator.inactive { background: transparent; box-shadow: none; animation: none; }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.15); } }
+
+.stat-group { display: flex; gap: 5px; flex-shrink: 0; min-width: 120px; justify-content: flex-end; }
+.stat-chip { font-size: 0.7rem; color: #5c4a2f; background: rgba(139,105,20,0.15); padding: 2px 7px; border-radius: 10px; white-space: nowrap; min-width: 52px; text-align: center; }
+.stat-chip span { font-weight: 600; }
+
+.controls { display: flex; flex-direction: column; gap: 7px; margin-top: auto; }
+.control-btn {
+    padding: 9px 12px; border: none; border-radius: 8px;
+    cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s ease;
+}
+.control-btn.primary { background: var(--wood-dark); color: var(--wood-light); }
+.control-btn.secondary { background: rgba(139,105,20,0.15); color: var(--text); border: 2px solid var(--wood-dark); }
+.control-btn.danger { background: var(--accent); color: white; }
+.control-btn:hover { transform: translateY(-1px); }
+
+/* ====== 主区域 ====== */
+.main-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; padding: 8px; gap: 8px; }
+.board-container {
+    position: relative;
+    display: flex;
+    margin-top: 8px;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    background: linear-gradient(135deg, var(--wood-medium) 0%, var(--wood-light) 50%, var(--wood-medium) 100%);
+    border-radius: 8px; box-shadow: 0 20px 70px rgba(0,0,0,0.6);
+    border: 3px solid var(--wood-dark); box-sizing: border-box;
+    overflow: visible;
+}
+.board { position: relative; background: var(--wood-light); border-radius: 3px; overflow: visible; }
+.grid-lines { position: absolute; top: 0; left: 0; } .intersections { position: absolute; top: 0; left: 0; }
+.grid-line-h, .grid-line-v { stroke: var(--wood-shadow); stroke-width: 1.5; stroke-linecap: round; }
+.intersection { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; cursor: pointer; }
+.intersection:hover { background: rgba(196,30,58,0.25); }
+.intersection.last-move::after {
+    content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 30%; height: 30%; background: var(--accent); border-radius: 50%; animation: pulse 1.5s infinite;
+}
+.stone {
+    position: absolute; transform: translate(-50%, -50%); border-radius: 50%;
+    transition: all 0.1s ease; cursor: pointer;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.4), inset 0 -2px 4px rgba(0,0,0,0.3);
+}
+.stone.black { background: radial-gradient(circle at 30% 30%, #4a4a4a, var(--stone-black)); }
+.stone.white { background: radial-gradient(circle at 30% 30%, #fff, var(--stone-white)); border: 1px solid rgba(0,0,0,0.08); }
+.stone.placed { animation: placeStone 0.2s ease; }
+.stone.last-marker::after {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    margin: auto;
+    width: 28%; height: 28%; border-radius: 50%; background: var(--accent);
+    animation: pulse 2s infinite;
+}
+.stone.dead { opacity: 0.45; }
+.stone.dead::after { content: '×'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 1em; color: var(--accent); font-weight: bold; }
+@keyframes placeStone { 0% { transform: translate(-50%,-50%) scale(1.3); } 100% { transform: translate(-50%,-50%) scale(1); } }
+
+
+.notice-bar { min-height: 28px; display: flex; margin-bottom: 6px; align-items: center; justify-content: center; padding: 4px 16px; border-radius: 6px; font-size: 0.82rem; font-weight: 500; transition: all 0.3s ease; opacity: 0; transform: translateY(-6px); pointer-events: none; }
+.notice-bar.show { opacity: 1; transform: translateY(0); }
+.notice-bar.error { background: rgba(196,30,58,0.15); color: var(--accent); border: 1px solid rgba(196,30,58,0.3); }
+.notice-bar.info { background: rgba(255,255,255,0.08); color: #ccc; border: 1px solid rgba(255,255,255,0.15); }
+.status-bar { display: flex; align-items: center; gap: 12px; padding: 5px 12px; background: rgba(255,255,255,0.05); border-radius: 8px; font-size: 0.85rem; margin-top: 4px; }
+.status-message { flex: 1; }
+.move-number { color: #aaa; }
+.ai-thinking { display: none; align-items: center; gap: 6px; color: #aaa; font-size: 0.8rem; }
+.ai-thinking.active { display: flex; }
+.thinking-dots { display: flex; gap: 3px; }
+.thinking-dots span { width: 4px; height: 4px; background: #aaa; border-radius: 50%; animation: bounce 1.2s infinite; }
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
+
+/* ====== 弹窗 ====== */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 100; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--wood-light); border-radius: 16px; padding: 28px; width: 360px; border: 3px solid var(--wood-dark); box-shadow: 0 30px 80px rgba(0,0,0,0.6); }
+.modal-title { text-align: center; color: var(--wood-shadow); font-size: 1.4rem; margin-bottom: 20px; }
+.score-board { display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 16px; }
+.score-player { text-align: center; }
+.score-stone { width: 48px; height: 48px; border-radius: 50%; margin: 0 auto 6px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); }
+.score-stone.black { background: radial-gradient(circle at 30% 30%, #4a4a4a, var(--stone-black)); }
+.score-stone.white { background: radial-gradient(circle at 30% 30%, #fff, var(--stone-white)); border: 1px solid rgba(0,0,0,0.08); }
+.score-label { font-size: 0.85rem; color: var(--wood-shadow); font-weight: 600; }
+.score-value { font-size: 2rem; font-weight: 700; color: var(--wood-dark); margin-top: 2px; }
+.score-vs { font-size: 1.2rem; color: #aaa; font-weight: 600; }
+.score-player.winner .score-value { color: var(--accent); }
+.score-details { background: rgba(0,0,0,0.05); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.score-detail-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.85rem; color: var(--wood-shadow); border-bottom: 1px solid rgba(139,105,20,0.15); }
+.score-detail-row:last-child { border-bottom: none; }
+.result-text { text-align: center; font-size: 1.1rem; font-weight: bold; margin: 12px 0; color: var(--accent); }
+.modal-buttons { display: flex; gap: 10px; }
+.modal-btn { flex: 1; padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s ease; }
+.modal-btn.primary { background: var(--wood-dark); color: var(--wood-light); }
+.modal-btn.secondary { background: rgba(139,105,20,0.15); color: var(--text); border: 2px solid var(--wood-dark); }
+.modal-btn:hover { transform: translateY(-1px); }
+
+@media (max-width: 900px) {
+    .container { flex-direction: column; }
+    .sidebar { width: 100%; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <aside class="sidebar">
+        <!-- 设置面板 -->
+        <div class="setup-panel" id="setupPanel">
+            <div class="logo">
+                <h1>围棋</h1>
+                <div class="subtitle">GO · 囲碁</div>
+            </div>
+            <div>
+                <div class="section-title">对弈模式</div>
+                <div class="mode-buttons">
+                    <button class="mode-btn active" data-mode="pvp">👥 双人</button>
+                    <button class="mode-btn" data-mode="ai">🤖 人机</button>
+                </div>
+            </div>
+            <div>
+                <div class="section-title">棋盘大小</div>
+                <div class="size-buttons">
+                    <button class="size-btn" data-size="5">5×5</button>
+                    <button class="size-btn" data-size="7">7×7</button>
+                    <button class="size-btn active" data-size="9">9×9</button>
+                    <button class="size-btn" data-size="13">13×13</button>
+                    <button class="size-btn" data-size="19">19×19</button>
+                </div>
+            </div>
+            <div>
+                <div class="section-title">贴子设置</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input type="range" id="komiSlider" min="0" max="10" value="0" step="0.5" style="flex:1;">
+                    <span id="komiDisplay" style="min-width:32px;text-align:center;font-weight:600;font-size:0.82rem;">0</span>
+                </div>
+            </div>
+            <button class="start-btn" id="startGameBtn">▶ 开始对局</button>
+        </div>
+
+        <!-- 游戏面板 -->
+        <div class="game-panel hidden" id="gamePanel">
+            <div class="game-header">
+                <span class="game-mode-label" id="gameModeLabel">双人 · 19×19</span>
+                <button class="back-btn" id="backToSetupBtn" title="返回设置">✏️</button>
+            </div>
+            <div class="player-info">
+                <div class="player-row">
+                    <div class="player-label">
+                        <div class="stone-icon black"></div>
+                        <span>黑棋</span>
+                        <div class="turn-indicator inactive" id="blackTurn"></div>
+                    </div>
+                    <div class="stat-group">
+                        <span class="stat-chip">围: <span id="blackTerr">0</span></span>
+                        <span class="stat-chip">提: <span id="blackCaptures">0</span></span>
+                    </div>
+                </div>
+                <div class="player-row">
+                    <div class="player-label">
+                        <div class="stone-icon white"></div>
+                        <span>白棋</span>
+                        <div class="turn-indicator inactive" id="whiteTurn"></div>
+                    </div>
+                    <div class="stat-group">
+                        <span class="stat-chip">围: <span id="whiteTerr">0</span></span>
+                        <span class="stat-chip">提: <span id="whiteCaptures">0</span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="controls">
+                <button class="control-btn secondary" id="passBtn">🏳️ 停一手</button>
+                <button class="control-btn secondary" id="undoBtn">↩️ 悔棋</button>
+                <button class="control-btn danger" id="resignBtn">🏳️ 认输</button>
+                <button class="control-btn primary" id="scoreBtn">📊 计算胜负</button>
+                <button class="control-btn primary" id="newGameBtn">🔄 新对局</button>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <div class="board-container">
+            <div class="board" id="board">
+                <svg class="grid-lines" id="gridLines"></svg>
+                <div class="intersections" id="intersections"></div>
+            </div>
+        </div>
+        <div class="notice-bar" id="noticeBar"></div>
+        <div class="status-bar">
+            <span class="status-message" id="statusMessage">黑棋先行</span>
+            <span class="move-number" id="moveNumber">第 1 手</span>
+            <div class="ai-thinking" id="aiThinking"><span>AI 思考中</span><div class="thinking-dots"><span></span><span></span><span></span></div></div>
+        </div>
+    </main>
+</div>
+
+<div class="modal-overlay" id="scoreModal">
+    <div class="modal">
+        <h2 class="modal-title">对局结束</h2>
+        <div class="score-board">
+            <div class="score-player" id="blackScoreBox">
+                <div class="score-stone black"></div>
+                <div class="score-label">黑棋</div>
+                <div class="score-value" id="blackScore">0</div>
+            </div>
+            <div class="score-vs">VS</div>
+            <div class="score-player" id="whiteScoreBox">
+                <div class="score-stone white"></div>
+                <div class="score-label">白棋</div>
+                <div class="score-value" id="whiteScore">0</div>
+            </div>
+        </div>
+        <div class="score-details">
+            <div class="score-detail-row"><span>黑棋子数</span><span id="blackStones">0</span></div>
+            <div class="score-detail-row"><span>白棋子数</span><span id="whiteStones">0</span></div>
+            <div class="score-detail-row"><span>黑棋空点</span><span id="blackTerritory">0</span></div>
+            <div class="score-detail-row"><span>白棋空点</span><span id="whiteTerritory">0</span></div>
+            <div class="score-detail-row"><span>贴子</span><span id="komiValue">0</span></div>
+        </div>
+        <div class="result-text" id="resultText"></div>
+        <div class="modal-buttons">
+            <button class="modal-btn secondary" id="closeModalBtn">继续对局</button>
+            <button class="modal-btn primary" id="newGameModalBtn">新对局</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ====== State ======
+const state = {
+    boardSize: 19,
+    board: [],
+    currentPlayer: 1,
+    mode: 'pvp',
+    moveHistory: [],
+    captures: {1: 0, 2: 0},
+    moveNumber: 1,
+    lastMove: null,
+    gameEnded: false,
+    consecutivePasses: 0,
+    deadStones: new Set(),
+    koPosition: null,
+    komi: 6.5
+};
+
+// ====== DOM Refs ======
+const boardEl = document.getElementById('board');
+const gridLinesEl = document.getElementById('gridLines');
+const intersectionsEl = document.getElementById('intersections');
+const statusMessageEl = document.getElementById('statusMessage');
+const moveNumberEl = document.getElementById('moveNumber');
+const blackTurnEl = document.getElementById('blackTurn');
+const whiteTurnEl = document.getElementById('whiteTurn');
+const blackCapturesEl = document.getElementById('blackCaptures');
+const whiteCapturesEl = document.getElementById('whiteCaptures');
+const aiThinkingEl = document.getElementById('aiThinking');
+const scoreModal = document.getElementById('scoreModal');
+
+// ====== Layout ======
+function computeLayout() {
+    const container = boardEl.parentElement;
+    if (!container) return;
+    const mainArea = document.querySelector('.main-area');
+    const availW = mainArea ? mainArea.clientWidth : 400;
+    const availH = mainArea ? mainArea.clientHeight : 400;
+    if (!availW || !availH) return; // DOM 还没渲染好
+    const size = Math.min(availW, availH) - 56;
+    const pad = Math.max(12, size * 0.025);
+    const cell = Math.max(18, (size - pad * 2) / (state.boardSize - 1));
+    state.padding = pad;
+    state.cellSize = cell;
+    state.totalSize = pad * 2 + cell * (state.boardSize - 1);
+    // board-container: totalSize+12 (border:3px*2 + inset:6px*2), board: inset:6px 填满
+    container.style.width = (state.totalSize + 12) + 'px';
+    container.style.height = (state.totalSize + 12) + 'px';
+    // board inset:6px 填满容器（JS 设宽高让 absolute 不塌）
+    boardEl.style.width = state.totalSize + 'px';
+    boardEl.style.height = state.totalSize + 'px';
+    // status-bar 宽度 = board-container 宽度，对齐棋盘
+    const statusBar = document.querySelector('.status-bar');
+    if (statusBar) statusBar.style.width = container.style.width;
+    const noticeBar = document.getElementById('noticeBar');
+    if (noticeBar) noticeBar.style.width = container.style.width;
+}
+
+// ====== Star Points ======
+function getStarPoints(size) {
+    if (size === 19) return [[3,3],[3,9],[3,15],[9,3],[9,9],[9,15],[15,3],[15,9],[15,15]];
+    if (size === 13) return [[3,3],[3,9],[6,6],[9,3],[9,9]];
+    if (size === 9) return [[2,2],[2,6],[4,4],[6,2],[6,6]];
+    if (size === 7) return [[3,3]];
+    if (size === 5) return [[2,2]];
+    return [];
+}
+
+// ====== Board Render ======
+function renderBoard() {
+    const {padding, cellSize, totalSize} = state;
+
+    // size the SVG
+    gridLinesEl.setAttribute('width', totalSize);
+    gridLinesEl.setAttribute('height', totalSize);
+    gridLinesEl.style.cssText = `position:absolute;top:0;left:0;width:${totalSize}px;height:${totalSize}px;`;
+
+    // draw grid lines
+    let svg = '';
+    for (let i = 0; i < state.boardSize; i++) {
+        svg += `<line class="grid-line-h" x1="${padding}" y1="${padding + i*cellSize}" x2="${padding + (state.boardSize-1)*cellSize}" y2="${padding + i*cellSize}"/>`;
+        svg += `<line class="grid-line-v" x1="${padding + i*cellSize}" y1="${padding}" x2="${padding + i*cellSize}" y2="${padding + (state.boardSize-1)*cellSize}"/>`;
+    }
+    getStarPoints(state.boardSize).forEach(([r, c]) => {
+        svg += `<circle cx="${padding+c*cellSize}" cy="${padding+r*cellSize}" r="${cellSize*0.12}" fill="var(--wood-shadow)"/>`;
+    });
+    gridLinesEl.innerHTML = svg;
+
+    // board div sized by computeLayout (top:6px bottom:6px fills container height; JS sets width for horizontal centering)
+    void 0;
+
+    // create intersections
+    intersectionsEl.innerHTML = '';  // 清除旧的
+    intersectionsEl.style.cssText = `position:absolute;top:0;left:0;width:${totalSize}px;height:${totalSize}px;`;
+    const hitSize = Math.min(cellSize * 0.9, Math.max(cellSize * 0.7, 16));
+    for (let r = 0; r < state.boardSize; r++) {
+        for (let c = 0; c < state.boardSize; c++) {
+            const el = document.createElement('div');
+            el.className = 'intersection';
+            // 只在空点显示 intersection 的 last-move 标记（有棋子时由 stone.last-marker 显示）
+            if (state.lastMove && state.lastMove[0] === r && state.lastMove[1] === c && state.board[r][c] === 0) {
+                el.classList.add('last-move');
+            }
+            el.style.cssText = `position:absolute;transform:translate(-50%,-50%);width:${hitSize}px;height:${hitSize}px;left:${padding+c*cellSize}px;top:${padding+r*cellSize}px;border-radius:50%;cursor:pointer;`;
+            el.dataset.row = r;
+            el.dataset.col = c;
+            el.addEventListener('click', (e) => { console.log('click at', r, c, 'dataset', el.dataset.row, el.dataset.col); handleMove(r, c); });
+            intersectionsEl.appendChild(el);
+        }
+    }
+    renderStones();
+}
+
+function renderStones() {
+    // remove old stones
+    document.querySelectorAll('.stone').forEach(s => s.remove());
+    const {padding, cellSize} = state;
+    const stoneSize = Math.min(cellSize * 0.9, Math.max(cellSize * 0.7, 16));
+    for (let r = 0; r < state.boardSize; r++) {
+        for (let c = 0; c < state.boardSize; c++) {
+            const stone = state.board[r][c];
+            if (stone === 0) continue;
+            const el = document.createElement('div');
+            el.className = `stone ${stone === 1 ? 'black' : 'white'}`;
+            if (state.lastMove && state.lastMove[0] === r && state.lastMove[1] === c) {
+                el.classList.add('placed', 'last-marker');
+            }
+            if (state.deadStones.has(`${r},${c}`)) {
+                el.classList.add('dead');
+            }
+            el.style.cssText = `position:absolute;transform:translate(-50%,-50%);width:${stoneSize}px;height:${stoneSize}px;left:${padding+c*cellSize}px;top:${padding+r*cellSize}px;border-radius:50%;`;
+            boardEl.appendChild(el);
+        }
+    }
+}
+
+// ====== Group & Liberties ======
+function getGroup(r, c) {
+    const color = state.board[r][c];
+    if (color === 0) return {stones: [], liberties: []};
+    const visited = new Set();
+    const stones = [];
+    const liberties = [];
+    const queue = [[r, c]];
+    visited.add(`${r},${c}`);
+    while (queue.length > 0) {
+        const [cr, cc] = queue.shift();
+        stones.push([cr, cc]);
+        [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr, dc]) => {
+            const nr = cr+dr, nc = cc+dc;
+            if (nr < 0 || nr >= state.boardSize || nc < 0 || nc >= state.boardSize) return;
+            const key = `${nr},${nc}`;
+            if (visited.has(key)) return;
+            visited.add(key);
+            if (state.board[nr][nc] === 0) {
+                liberties.push([nr, nc]);
+            } else if (state.board[nr][nc] === color) {
+                queue.push([nr, nc]);
+            }
+        });
+    }
+    return {stones, liberties};
+}
+
+function hasLiberty(r, c) {
+    return getGroup(r, c).liberties.length > 0;
+}
+
+// ====== Flood Fill for Territory ======
+function floodFillTerritory(startR, startC, visited) {
+    const queue = [[startR, startC]];
+    const cells = [[startR, startC]];
+    visited.add(`${startR},${startC}`);
+    while (queue.length > 0) {
+        const [cr, cc] = queue.shift();
+        [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr, dc]) => {
+            const nr = cr+dr, nc = cc+dc;
+            if (nr < 0 || nr >= state.boardSize || nc < 0 || nc >= state.boardSize) return;
+            const key = `${nr},${nc}`;
+            if (visited.has(key)) return;
+            if (state.board[nr][nc] === 0) {
+                visited.add(key);
+                cells.push([nr, nc]);
+                queue.push([nr, nc]);
+            }
+        });
+    }
+    // determine owner: only one side can surround a territory
+    let owner = 0;
+    outer: for (const [rr, cc] of cells) {
+        for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+            const nr = rr+dr, nc = cc+dc;
+            if (nr < 0 || nr >= state.boardSize || nc < 0 || nc >= state.boardSize) continue;
+            const v = state.board[nr][nc];
+            if (v === 1) { owner = 1; break outer; }
+            if (v === 2) { owner = 2; break outer; }
+        }
+    }
+    return {count: cells.length, owner};
+}
+
+// ====== Live Territory ======
+function computeLiveTerritory() {
+    let blackStones = 0, whiteStones = 0;
+    let blackTerr = 0, whiteTerr = 0;
+    const visited = new Set();
+
+    // count stones
+    for (let r = 0; r < state.boardSize; r++) {
+        for (let c = 0; c < state.boardSize; c++) {
+            if (state.board[r][c] === 1) blackStones++;
+            else if (state.board[r][c] === 2) whiteStones++;
+        }
+    }
+
+    // flood fill empty territories
+    for (let r = 0; r < state.boardSize; r++) {
+        for (let c = 0; c < state.boardSize; c++) {
+            if (state.board[r][c] !== 0) continue;
+            const key = `${r},${c}`;
+            if (visited.has(key)) continue;
+            const {count, owner} = floodFillTerritory(r, c, visited);
+            if (owner === 1) blackTerr += count;
+            else if (owner === 2) whiteTerr += count;
+        }
+    }
+
+    return {
+        blackTerr: blackStones + blackTerr,
+        whiteTerr: whiteStones + whiteTerr,
+        blackTerrOnly: blackTerr,
+        whiteTerrOnly: whiteTerr
+    };
+}
+
+// ====== Move Handler ======
+function handleMove(row, col) {
+    if (state.gameEnded) return;
+    if (state.board[row][col] !== 0) return;
+
+    // ko check: can't immediately recapture a ko
+    if (state.koPosition && state.koPosition[0] === row && state.koPosition[1] === col) {
+        showNotice('劫禁着点，不能落子', 'error');
+        return;
+    }
+
+    // place stone first
+    state.board[row][col] = state.currentPlayer;
+
+    // === 自杀检查：没提子且自己没气 = 非法 ===
+    const myGroup = getGroup(row, col);
+    const hasCaptured = false; // will be set true if we capture anything
+    // 先检查是否提子，如果没有提子且自己没气，就是自杀
+    // 但由于后面会修改board，我们先记下来后面再判断
+    let wouldBeSuicide = true;  // 假设是自杀，后面如果提子成功就改为合法
+
+    // capture: only capture groups whose ONLY remaining liberty is the newly placed stone
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    const captured = [];
+    dirs.forEach(([dr, dc]) => {
+        const nr = row+dr, nc = col+dc;
+        if (nr < 0 || nr >= state.boardSize || nc < 0 || nc >= state.boardSize) return;
+        if (state.board[nr][nc] !== state.currentPlayer) {
+            const group = getGroup(nr, nc);
+            // check: how many liberties are NOT the newly placed stone?
+            const realLiberties = group.liberties.filter(([lr, lc]) => !(lr === row && lc === col));
+            if (group.stones.length > 0 && realLiberties.length === 0) {
+                group.stones.forEach(([r, c]) => {
+                    captured.push([r, c]);
+                    state.board[r][c] = 0;
+                });
+            }
+        }
+    });
+
+    // save state for undo
+    state.moveHistory.push({
+        row, col,
+        player: state.currentPlayer,
+        captures: captured.map(([r,c]) => [r,c]),
+        koPosition: state.koPosition ? [...state.koPosition] : null
+    });
+
+    // 如果提了子，则不是自杀（提子后自己的棋会重生）
+    if (captured.length > 0) {
+        wouldBeSuicide = false;
+    }
+    
+    // 自杀检查：如果没提子且自己没气，则为非法
+    if (wouldBeSuicide) {
+        // 重新检查气（此时board上已经有自己的子和可能的提子）
+        const finalGroup = getGroup(row, col);
+        if (finalGroup.liberties.length === 0) {
+            // 自杀！恢复棋盘，返回
+            state.board[row][col] = 0;
+            showNotice('无气禁着，不能落子', 'error');
+            return;
+        }
+    }
+
+    // update captures
+    state.captures[state.currentPlayer] += captured.length;
+
+    // ko 判断：提1子后，刚落的棋子只剩1气且该气就是被提位置
+    state.koPosition = null;
+    if (captured.length === 1) {
+        const myGroup = getGroup(row, col);
+        if (myGroup && myGroup.liberties.length === 1) {
+            const [libR, libC] = myGroup.liberties[0];
+            const [cr, cc] = captured[0];
+            if (libR === cr && libC === cc) {
+                state.koPosition = [cr, cc];
+            }
+        }
+    }
+    state.lastMove = [row, col];
+    state.currentPlayer = state.currentPlayer === 1 ? 2 : 1;
+    state.moveNumber++;
+    state.consecutivePasses = 0;
+    renderStones();
+    if (captured.length > 0) { playCaptureSound(); } else { playPlaceSound(); }
+    updateUI();
+
+    // AI move
+    if (state.mode === 'ai' && state.currentPlayer === 2 && !state.gameEnded) {
+        aiThinkingEl.classList.add('active');
+        setTimeout(() => {
+            const move = getAIMove();
+            aiThinkingEl.classList.remove('active');
+            if (move) handleMove(move.row, move.col);
+            else pass();
+        }, 300);
+    }
+}
+
+// ====== AI ======
+const AI_PLAYER = 2;
+const HUMAN_PLAYER = 1;
+
+// ====== Pattern Library (Opening) ======
+// Simple patterns: [dx,dy] relative offsets from the played stone that must match
+const PATTERNS = [
+    // 常见挂角：小目高挂
+    { name: '小目一间高挂', board: [[-2,0],[0,-1]], score: 8 },
+    // 小飞挂
+    { name: '小目小飞挂', board: [[-1,-1],[0,-1],[-2,0]], score: 9 },
+    // 三三侵入
+    { name: '三三', board: [[0,-1],[-1,0]], score: 7 },
+    // 星位小飞
+    { name: '星位小飞', board: [[-1,-1],[0,-1],[-1,0]], score: 8 },
+    // 星位一间跳
+    { name: '星位一间跳', board: [[-2,0],[0,-1],[-2,-1]], score: 7 },
+    // 肩冲
+    { name: '肩冲', board: [[-2,-1],[0,-1],[-2,-2],[0,-2]], score: 6 },
+    // 小目大飞挂
+    { name: '小目大飞挂', board: [[-2,-1],[-1,-2]], score: 7 },
+    // 镇
+    { name: '镇', board: [[2,0],[1,-1],[1,1],[2,-1],[2,1]], score: 6 },
+    // 碰
+    { name: '碰', board: [[0,-1],[0,1]], score: 5 },
+];
+
+// Check if a pattern matches at position (r, c) for given player
+function matchPattern(board, r, c, player, size) {
+    if (board[r][c] !== 0) return null;
+    let bestPattern = null, bestScore = -Infinity;
+    for (const pat of PATTERNS) {
+        let match = true, score = pat.score;
+        for (const [dr, dc] of pat.board) {
+            const nr = r + dr, nc = c + dc;
+            if (nr < 0 || nr >= size || nc < 0 || nc >= size) { match = false; break; }
+            // This pattern checks for presence of player's stones nearby
+        }
+        if (match && score > bestScore) { bestScore = score; bestPattern = pat; }
+    }
+    return bestPattern ? { name: bestPattern.name, score: bestPattern.score } : null;
+}
+
+// Position value table
+function positionValue(r, c, size) {
+    const lineR = r < size/2 ? r : size - 1 - r;
+    const lineC = c < size/2 ? c : size - 1 - c;
+    const minLine = Math.min(lineR, lineC);
+    if (minLine === 0) return -3;
+    if (minLine === 1) return -1;
+    if (minLine === 2) return 4;
+    if (minLine === 3) return 5;
+    return 2;
+}
+
+// Real eye detection
+function isRealEye(board, r, c, player, size) {
+    if (board[r][c] !== 0) return false;
+    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const nr = r+dr, nc = c+dc;
+        if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] !== player) return false;
+    }
+    let ed = 0, td = 0;
+    for (const [dr, dc] of [[-1,-1],[-1,1],[1,-1],[1,1]]) {
+        const nr = r+dr, nc = c+dc;
+        if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+            td++;
+            if (board[nr][nc] === 3 - player) ed++;
+        }
+    }
+    return td < 4 ? ed === 0 : ed <= 1;
+}
+
+// Board-independent group finding
+function getGroupOnBoard(board, row, col, size) {
+    const color = board[row][col];
+    if (color === 0) return { stones: [], liberties: [] };
+    const visited = new Set();
+    const stones = [], liberties = new Set();
+    const stack = [[row, col]];
+    while (stack.length > 0) {
+        const [r, c] = stack.pop();
+        const key = r * size + c;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        if (board[r][c] === color) {
+            stones.push([r, c]);
+            for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                const nr = r+dr, nc = c+dc;
+                if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+                if (board[nr][nc] === 0) liberties.add(nr * size + nc);
+                else if (board[nr][nc] === color && !visited.has(nr * size + nc)) stack.push([nr, nc]);
+            }
+        }
+    }
+    return { stones, liberties: Array.from(liberties).map(k => [Math.floor(k/size), k%size]) };
+}
+
+// Simulate move on a copied board
+function simulateMoveOnBoard(board, r, c, player, size) {
+    if (board[r][c] !== 0) return null;
+    const nb = board.map(row => [...row]);
+    nb[r][c] = player;
+    const opp = 3 - player;
+    let captured = 0;
+    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const nr = r+dr, nc = c+dc;
+        if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+        if (nb[nr][nc] === opp) {
+            const g = getGroupOnBoard(nb, nr, nc, size);
+            if (g.liberties.length === 0) {
+                captured += g.stones.length;
+                for (const [gr, gc] of g.stones) nb[gr][gc] = 0;
+            }
+        }
+    }
+    const myGroup = getGroupOnBoard(nb, r, c, size);
+    if (myGroup.liberties.length === 0) return null;
+    return { board: nb, captured };
+}
+
+// ====== MCTS ======
+class MCTSNode {
+    constructor(board, player, size, parent=null, move=null, koPos=null) {
+        this.board = board;
+        this.player = player;   // player to move at this node
+        this.size = size;
+        this.parent = parent;
+        this.move = move;       // {row, col} that led to this node
+        this.koPos = koPos;
+        this.children = [];
+        this.wins = 0;
+        this.visits = 0;
+        this.untriedMoves = null; // lazy: filled on first access
+    }
+}
+
+const UCB1_C = 1.414; // exploration constant
+
+function ucb1(node) {
+    if (node.visits === 0) return Infinity;
+    // Win rate from AI's perspective
+    const winRate = node.wins / node.visits;
+    const exploration = UCB1_C * Math.sqrt(Math.log(node.parent.visits) / node.visits);
+    // For HUMAN_PLAYER nodes, winRate is already what AI lost, so we need to flip
+    return winRate + exploration;
+}
+
+function getLegalMoves(board, player, size, koPos, skipEye=true) {
+    const moves = [];
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            if (board[r][c] !== 0) continue;
+            if (koPos && koPos[0] === r && koPos[1] === c) continue;
+            if (skipEye && isRealEye(board, r, c, player, size)) continue;
+            // Quick legality check
+            const result = simulateMoveOnBoard(board, r, c, player, size);
+            if (!result) continue;
+            moves.push({ row: r, col: c });
+        }
+    }
+    return moves;
+}
+
+function evaluate(board, size) {
+    // Quick terminal/stochastic evaluation
+    // Count territory (simplified flood fill)
+    const visited = new Set();
+    let score = 0;
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            if (board[r][c] === AI_PLAYER) score += 1;
+            else if (board[r][c] === HUMAN_PLAYER) score -= 1;
+        }
+    }
+    // Territory estimation
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            if (board[r][c] !== 0) continue;
+            const key = r * size + c;
+            if (visited.has(key)) continue;
+            const queue = [[r, c]];
+            const cells = [];
+            const borders = new Set();
+            const localVisited = new Set([key]);
+            while (queue.length > 0) {
+                const [cr, cc] = queue.shift();
+                cells.push([cr, cc]);
+                for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                    const nr = cr+dr, nc = cc+dc;
+                    if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+                    if (board[nr][nc] !== 0) { borders.add(board[nr][nc]); continue; }
+                    const nk = nr * size + nc;
+                    if (localVisited.has(nk)) continue;
+                    localVisited.add(nk);
+                    queue.push([nr, nc]);
+                }
+            }
+            cells.forEach(([cr, cc]) => visited.add(cr * size + cc));
+            if (borders.size === 1) {
+                const owner = borders.values().next().value;
+                if (owner === AI_PLAYER) score += cells.length * 1.5;
+                else score -= cells.length * 1.5;
+            }
+        }
+    }
+    return score;
+}
+
+// Play random moves until game ends or maxPlayouts reached
+function playout(board, size, maxPlayouts=40) {
+    let nb = board.map(row => [...row]);
+    let player = AI_PLAYER; // Actually whoever's turn it is - but we track passing
+    let passes = 0;
+    let consecutivePasses = 0;
+    // Determine starting player from board state... 
+    // For simplicity, start from WHITE (AI) if move count is odd, else BLACK
+    let moveNum = 0;
+    for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) if (nb[r][c] !== 0) moveNum++;
+    player = (moveNum % 2 === 0) ? AI_PLAYER : HUMAN_PLAYER;
+    let koPos = null;
+
+    for (let i = 0; i < maxPlayouts; i++) {
+        const moves = getLegalMoves(nb, player, size, koPos);
+        if (moves.length === 0 || consecutivePasses >= 2) break;
+        // Pick a move with slight preference for smart ones
+        let chosen;
+        if (moves.length === 1) {
+            chosen = moves[0];
+        } else {
+            // 70% best by heuristic, 30% random
+            if (Math.random() < 0.7) {
+                let bestScore = -Infinity;
+                const scored = moves.map(m => {
+                    const result = simulateMoveOnBoard(nb, m.row, m.col, player, size);
+                    if (!result) return { ...m, hscore: -Infinity };
+                    let hscore = result.captured * 5;
+                    // Liberties of placed stone
+                    const g = getGroupOnBoard(result.board, m.row, m.col, size);
+                    hscore += g.liberties.length;
+                    // Adjacent to own stones
+                    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                        const nr = m.row+dr, nc = m.col+dc;
+                        if (nr>=0&&nr<size&&nc>=0&&nc<size&&nb[nr][nc]===player) hscore += 1;
+                    }
+                    // Near opponent stones (more interesting)
+                    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                        const nr = m.row+dr, nc = m.col+dc;
+                        if (nr>=0&&nr<size&&nc>=0&&nc<size&&nb[nr][nc]===3-player) {
+                            const g = getGroupOnBoard(nb, nr, nc, size);
+                            if (g.liberties.length === 1) hscore += 3; // atari
+                        }
+                    }
+                    return { ...m, hscore };
+                });
+                scored.sort((a,b) => b.hscore - a.hscore);
+                const top = scored.slice(0, Math.max(1, Math.ceil(scored.length * 0.3)));
+                chosen = top[Math.floor(Math.random() * top.length)];
+            } else {
+                chosen = moves[Math.floor(Math.random() * moves.length)];
+            }
+        }
+        const result = simulateMoveOnBoard(nb, chosen.row, chosen.col, player, size);
+        if (!result) break;
+        nb = result.board;
+        if (result.captured > 0) koPos = null; else koPos = null;
+        player = 3 - player;
+    }
+    // Evaluate final board
+    return evaluate(nb, size);
+}
+
+function expand(node) {
+    const moves = getLegalMoves(node.board, node.player, node.size, node.koPos);
+    if (moves.length === 0) return null; // terminal (pass)
+    const move = moves[Math.floor(Math.random() * moves.length)];
+    const result = simulateMoveOnBoard(node.board, move.row, move.col, node.player, node.size);
+    if (!result) return null;
+    const child = new MCTSNode(result.board, 3 - node.player, node.size, node, move, null);
+    node.children.push(child);
+    return child;
+}
+
+function treePolicy(node) {
+    while (true) {
+        if (node.children.length === 0) return expand(node) || node;
+        // UCB1 selection - but with slight twist: prefer nodes that haven't been fully explored
+        let bestChild = null, bestUCB = -Infinity;
+        for (const child of node.children) {
+            const ucb = ucb1(child);
+            if (ucb > bestUCB) { bestUCB = ucb; bestChild = child; }
+        }
+        if (!bestChild) return node;
+        node = bestChild;
+    }
+}
+
+function backpropagate(node, result) {
+    while (node !== null) {
+        node.visits++;
+        // result is from AI's perspective: positive = AI wins
+        if (result > 0) node.wins++;
+        node = node.parent;
+    }
+}
+
+function bestChild(node) {
+    let best = null, bestVisits = -1;
+    for (const child of node.children) {
+        if (child.visits > bestVisits) { bestVisits = child.visits; best = child; }
+    }
+    return best;
+}
+
+function getBestMCTSMove(board, player, size, koPos, numSimulations) {
+    const root = new MCTSNode(board, player, size, null, null, koPos);
+    for (let i = 0; i < numSimulations; i++) {
+        const node = treePolicy(root);
+        if (!node) continue;
+        // Simulate from this node
+        const simResult = playout(node.board, node.size);
+        backpropagate(node, simResult);
+    }
+    const best = bestChild(root);
+    if (!best || !best.move) return null;
+    return best.move;
+}
+
+// ====== Main AI Entry Point ======
+// Run MCTS from the root: expand candidates, simulate, pick best by visit count
+function getAIMove() {
+    const size = state.boardSize;
+    const aiPlayer = 2;
+
+    // First: get all legal moves
+    const legalMoves = getLegalMoves(state.board, aiPlayer, size, state.koPosition, true);
+    if (legalMoves.length === 0) return null;
+
+    // Quick heuristic scoring for move ordering (move ordering = key to MCTS efficiency)
+    const scoredMoves = legalMoves.map(move => {
+        const result = simulateMoveOnBoard(state.board, move.row, move.col, aiPlayer, size);
+        if (!result) return { ...move, score: -Infinity };
+        let score = 0;
+        // Captures are high priority
+        score += result.captured * 30;
+        // Atari: save own, threaten opponent
+        for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+            const nr = move.row+dr, nc = move.col+dc;
+            if (nr>=0&&nr<size&&nc>=0&&nc<size) {
+                if (state.board[nr][nc]===aiPlayer) {
+                    const g = getGroupOnBoard(state.board, nr, nc, size);
+                    if (g.liberties.length===1) score += g.stones.length*20;
+                    else if (g.liberties.length===2) score += g.stones.length*3;
+                }
+                if (state.board[nr][nc]===HUMAN_PLAYER) {
+                    const g = getGroupOnBoard(state.board, nr, nc, size);
+                    if (g.liberties.length===1) score += g.stones.length*15;
+                }
+            }
+        }
+        score += positionValue(move.row, move.col, size) * 4;
+        // Prefer proximity to existing stones
+        let nearCount = 0;
+        for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1],[-2,0],[0,-2]]) {
+            const nr = move.row+dr, nc = move.col+dc;
+            if (nr>=0&&nr<size&&nc>=0&&nc<size&&state.board[nr][nc]!==0) nearCount++;
+        }
+        score += nearCount * 2;
+        return { ...move, score };
+    }).filter(m => m.score > -Infinity);
+
+    scoredMoves.sort((a, b) => b.score - a.score);
+    // Top candidates only - reduces branching
+    const candidates = scoredMoves.slice(0, Math.min(8, scoredMoves.length));
+    if (candidates.length === 0) return null;
+
+    // Build MCTS tree: root has children = each candidate move
+    const children = [];
+    for (const move of candidates) {
+        const result = simulateMoveOnBoard(state.board, move.row, move.col, aiPlayer, size);
+        if (!result) continue;
+        const child = new MCTSNode(result.board, 3 - aiPlayer, size, null, move, null);
+        children.push(child);
+    }
+    if (children.length === 0) return null;
+
+    // Simulation budget per board size
+    let totalSims;
+    if (size <= 7) totalSims = 80;
+    else if (size <= 9) totalSims = 50;
+    else if (size <= 13) totalSims = 30;
+    else totalSims = 20;
+
+    // UCB1 exploration constant: higher = more exploration
+    const C = 1.2;
+
+    for (let i = 0; i < totalSims; i++) {
+        // UCB1 selection among children
+        let bestChild = null, bestUCB = -Infinity;
+        for (const child of children) {
+            if (child.visits === 0) { bestChild = child; bestUCB = Infinity; break; }
+            const ucb = (child.wins / child.visits) + C * Math.sqrt(Math.log(i + 1) / child.visits);
+            if (ucb > bestUCB) { bestUCB = ucb; bestChild = child; }
+        }
+        if (!bestChild) continue;
+
+        // Playout from selected child
+        const simResult = playout(bestChild.board, bestChild.size);
+        // Backpropagate
+        bestChild.visits++;
+        bestChild.wins += (simResult > 0) ? 1 : (simResult < 0 ? 0 : 0.5);
+    }
+
+    // Pick child with most visits (robust to noise)
+    let best = null, bestVisits = -1;
+    for (const child of children) {
+        if (child.visits > bestVisits) { bestVisits = child.visits; best = child; }
+    }
+    if (!best) return candidates[0];
+    return best.move;
+}
+
+// ====== Pass ======
+function pass() {
+    if (state.gameEnded) return;
+    state.moveHistory.push({pass: true, player: state.currentPlayer});
+    state.consecutivePasses++;
+    state.koPosition = null;
+    if (state.consecutivePasses >= 2) {
+        calculateScore();
+    } else {
+        showNotice(`${state.currentPlayer === 1 ? '黑棋' : '白棋'}停一手`, 'info');
+        state.currentPlayer = state.currentPlayer === 1 ? 2 : 1;
+        updateUI();
+        // AI move after player passes
+        if (state.mode === 'ai' && state.currentPlayer === 2 && !state.gameEnded) {
+            aiThinkingEl.classList.add('active');
+            setTimeout(() => {
+                const move = getAIMove();
+                aiThinkingEl.classList.remove('active');
+                if (move) handleMove(move.row, move.col);
+                else pass();
+            }, 300);
+        }
+    }
+}
+
+// ====== Undo ======
+function undo() {
+    if (state.moveHistory.length === 0) return;
+    if (state.mode === 'ai' && state.moveHistory.length <= 1) return; // AI already moved
+
+    const lastMove = state.moveHistory.pop();
+
+    if (lastMove.pass) {
+        // undo a pass
+        const prev = state.moveHistory.length > 0 ? state.moveHistory[state.moveHistory.length - 1] : null;
+        state.currentPlayer = lastMove.player;
+        state.consecutivePasses--;
+        if (prev && !prev.pass) {
+            state.lastMove = [prev.row, prev.col];
+        } else {
+            state.lastMove = null;
+        }
+    } else {
+        // undo a regular move
+        state.board[lastMove.row][lastMove.col] = 0;
+        lastMove.captures.forEach(([r, c]) => { state.board[r][c] = 3 - lastMove.player; });
+        state.captures[lastMove.player] -= lastMove.captures.length;
+        state.currentPlayer = lastMove.player;
+        state.koPosition = lastMove.koPosition;
+        const prev = state.moveHistory.length > 0 ? state.moveHistory[state.moveHistory.length - 1] : null;
+        state.lastMove = (prev && !prev.pass) ? [prev.row, prev.col] : null;
+    }
+
+    state.moveNumber--;
+    state.gameEnded = false;
+    renderStones();
+    updateUI();
+}
+
+// ====== Score Calculation ======
+function calculateScore() {
+    const visited = new Set();
+    let blackTerritory = 0, whiteTerritory = 0;
+
+    // mark dead stones
+    state.deadStones.clear();
+    for (let r = 0; r < state.boardSize; r++) {
+        for (let c = 0; c < state.boardSize; c++) {
+            if (state.board[r][c] !== 0 && !hasLiberty(r, c)) {
+                state.deadStones.add(`${r},${c}`);
+            }
+        }
+    }
+
+    // flood fill territories
+    for (let r = 0; r < state.boardSize; r++) {
+        for (let c = 0; c < state.boardSize; c++) {
+            if (state.board[r][c] !== 0) continue;
+            const key = `${r},${c}`;
+            if (visited.has(key)) continue;
+            const {count, owner} = floodFillTerritory(r, c, visited);
+            if (owner === 1) blackTerritory += count;
+            else if (owner === 2) whiteTerritory += count;
+        }
+    }
+
+    // add captures
+    blackTerritory += state.captures[1];
+    whiteTerritory += state.captures[2];
+
+    // count stones
+    let blackStones = 0, whiteStones = 0;
+    for (let r = 0; r < state.boardSize; r++) {
+        for (let c = 0; c < state.boardSize; c++) {
+            if (state.board[r][c] === 1) blackStones++;
+            else if (state.board[r][c] === 2) whiteStones++;
+        }
+    }
+
+    const totalPoints = state.boardSize * state.boardSize;
+    const komi = state.komi;
+    // 中国规则：黑 = 黑子 + 黑空（含提子），白 = 白子 + 白空
+    // 终局时，死子算作对方的子，所以黑终 = 黑子 + 黑空， 白终 = 白子 + 白空
+    const blackTotal = blackStones + blackTerritory;
+    const whiteTotal = whiteStones + whiteTerritory;
+
+    // 判断胜负（黑需要超过 184.5 才能赢）
+    const blackWinThreshold = (totalPoints + komi) / 2;
+    const blackWins = blackTotal > blackWinThreshold;
+
+    document.getElementById('blackScore').textContent = blackTotal;
+    document.getElementById('whiteScore').textContent = whiteTotal;
+    document.getElementById('komiValue').textContent = komi;
+    document.getElementById('blackTerritory').textContent = blackTerritory;
+    document.getElementById('whiteTerritory').textContent = whiteTerritory;
+    document.getElementById('blackStones').textContent = blackStones;
+    document.getElementById('whiteStones').textContent = whiteStones;
+
+    document.getElementById('blackScoreBox').classList.toggle('winner', blackWins);
+    document.getElementById('whiteScoreBox').classList.toggle('winner', !blackWins);
+
+    const winMargin = blackWins
+        ? (blackTotal - whiteTotal) / 2
+        : (whiteTotal - blackTotal) / 2;
+    document.getElementById('resultText').textContent = blackWins
+        ? `⚫ 黑胜 ${winMargin.toFixed(1)} 子`
+        : `⚪ 白胜 ${winMargin.toFixed(1)} 子`;
+
+    scoreModal.classList.add('show');
+    state.gameEnded = true;
+    renderStones();
+}
+
+// ====== UI Update ======
+function updateUI() {
+    blackTurnEl.className = 'turn-indicator ' + ((state.currentPlayer === 1 && !state.gameEnded) ? 'active-black' : 'inactive');
+    whiteTurnEl.className = 'turn-indicator ' + ((state.currentPlayer === 2 && !state.gameEnded) ? 'active-white' : 'inactive');
+    blackCapturesEl.textContent = state.captures[1];
+    whiteCapturesEl.textContent = state.captures[2];
+    moveNumberEl.textContent = `第 ${state.moveNumber} 手`;
+
+    const {blackTerr, whiteTerr} = computeLiveTerritory();
+    document.getElementById('blackTerr').textContent = blackTerr;
+    document.getElementById('whiteTerr').textContent = whiteTerr;
+
+    if (!state.gameEnded) {
+        statusMessageEl.textContent = `${state.currentPlayer === 1 ? '黑棋' : '白棋'}落子`;
+    }
+}
+
+// ====== Init ======
+function initGame() {
+    state.board = Array.from({length: state.boardSize}, () => Array(state.boardSize).fill(0));
+    state.currentPlayer = 1;
+    state.moveHistory = [];
+    state.captures = {1: 0, 2: 0};
+    state.moveNumber = 1;
+    state.lastMove = null;
+    state.gameEnded = false;
+    state.consecutivePasses = 0;
+    state.deadStones.clear();
+    state.koPosition = null;
+
+    computeLayout();
+    renderBoard();
+    updateUI();
+
+    // 布局可能还没刷新生效，用 rAF 确保容器有尺寸后再重算一次
+    requestAnimationFrame(() => {
+        computeLayout();
+        renderBoard();
+    });
+
+    // switch panels
+    document.getElementById('setupPanel').classList.add('hidden');
+    document.getElementById('gamePanel').classList.remove('hidden');
+    document.getElementById('gameModeLabel').textContent =
+        (state.mode === 'ai' ? '人机' : '双人') + ' · ' + state.boardSize + '×' + state.boardSize;
+}
+
+// ====== Event Listeners ======
+
+// mode buttons
+document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.mode = btn.dataset.mode;
+    });
+});
+
+// size buttons
+document.querySelectorAll('.size-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    });
+});
+
+// komi slider
+document.getElementById('komiSlider').addEventListener('input', (e) => {
+    document.getElementById('komiDisplay').textContent = e.target.value;
+});
+
+// start game
+document.getElementById('startGameBtn').addEventListener('click', () => {
+    const activeSize = document.querySelector('.size-btn.active');
+    const activeMode = document.querySelector('.mode-btn.active');
+    if (activeSize) state.boardSize = parseInt(activeSize.dataset.size, 10);
+    if (activeMode) state.mode = activeMode.dataset.mode;
+    state.komi = parseFloat(document.getElementById('komiSlider').value);
+    initGame();
+});
+
+// back to setup
+document.getElementById('backToSetupBtn').addEventListener('click', () => {
+    document.getElementById('gamePanel').classList.add('hidden');
+    document.getElementById('setupPanel').classList.remove('hidden');
+});
+
+// game controls
+document.getElementById('passBtn').addEventListener('click', pass);
+document.getElementById('undoBtn').addEventListener('click', undo);
+document.getElementById('resignBtn').addEventListener('click', () => {
+    const winner = state.currentPlayer === 1 ? '白棋' : '黑棋';
+    statusMessageEl.textContent = `${state.currentPlayer === 1 ? '黑棋' : '白棋'}认输，${winner}胜！`;
+    state.gameEnded = true;
+});
+document.getElementById('scoreBtn').addEventListener('click', calculateScore);
+document.getElementById('newGameBtn').addEventListener('click', initGame);
+document.getElementById('closeModalBtn').addEventListener('click', () => {
+    scoreModal.classList.remove('show');
+    state.gameEnded = false;
+});
+document.getElementById('newGameModalBtn').addEventListener('click', () => {
+    scoreModal.classList.remove('show');
+    initGame();
+});
+
+// resize 监听（ResizeObserver 更可靠，元素尺寸变化时自动触发）
+const boardContainer = document.querySelector('.board-container');
+new ResizeObserver(() => {
+    if (document.getElementById('setupPanel').classList.contains('hidden')) {
+        computeLayout();
+        renderBoard();
+    }
+}).observe(boardContainer);
+
+window.addEventListener('resize', () => {
+    if (document.getElementById('setupPanel').classList.contains('hidden')) {
+        computeLayout();
+        renderBoard();
+    }
+});
+
+
+// ====== Notice ======
+let noticeTimer = null;
+function showNotice(msg, type) {
+    const el = document.getElementById('noticeBar');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'notice-bar ' + type + ' show';
+    if (type === 'error') playErrorSound();
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => { el.classList.remove('show'); }, 2000);
+}
+// ====== Sound ======
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playPlaceSound() {
+    try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+        osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.12);
+    } catch(e) {}
+}
+
+function playErrorSound() {
+    try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+        osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.2);
+    } catch(e) {}
+}
+function playCaptureSound() {
+    try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+        osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.25);
+    } catch(e) {}
+}
+</script>
+</body>
+</html>
