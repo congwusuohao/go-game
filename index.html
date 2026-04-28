@@ -92,7 +92,7 @@ body {
 .control-btn:hover { transform: translateY(-1px); }
 
 /* ====== 主区域 ====== */
-.main-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; padding: 8px; gap: 8px; }
+.main-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; padding: 8px; gap: 8px; padding-top: env(safe-area-inset-top, 16px); }
 .board-container {
     position: relative;
     display: flex;
@@ -230,7 +230,6 @@ body {
                     </div>
                     <div class="stat-group">
                         <span class="stat-chip">围: <span id="blackTerr">0</span></span>
-                        <span class="stat-chip">提: <span id="blackCaptures">0</span></span>
                         <span class="stat-chip">子: <span id="blackStones">0</span></span>
                     </div>
                 </div>
@@ -242,7 +241,6 @@ body {
                     </div>
                     <div class="stat-group">
                         <span class="stat-chip">围: <span id="whiteTerr">0</span></span>
-                        <span class="stat-chip">提: <span id="whiteCaptures">0</span></span>
                         <span class="stat-chip">子: <span id="whiteStones">0</span></span>
                     </div>
                 </div>
@@ -1205,8 +1203,6 @@ function calculateScore() {
 function updateUI() {
     blackTurnEl.className = 'turn-indicator ' + ((state.currentPlayer === 1 && !state.gameEnded) ? 'active-black' : 'inactive');
     whiteTurnEl.className = 'turn-indicator ' + ((state.currentPlayer === 2 && !state.gameEnded) ? 'active-white' : 'inactive');
-    blackCapturesEl.textContent = state.captures[1];
-    whiteCapturesEl.textContent = state.captures[2];
     moveNumberEl.textContent = `第 ${state.moveNumber} 手`;
 
     const {blackStones, whiteStones, blackTerr, whiteTerr} = computeLiveTerritory();
