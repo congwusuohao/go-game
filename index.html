@@ -229,8 +229,7 @@ body {
                         <div class="turn-indicator inactive" id="blackTurn"></div>
                     </div>
                     <div class="stat-group">
-                        <span class="stat-chip">围: <span id="blackTerr">0</span></span>
-                        <span class="stat-chip">子: <span id="blackStones">0</span></span>
+                        <span class="stat-chip">子+围: <span id="blackTerr">0</span></span>
                     </div>
                 </div>
                 <div class="player-row">
@@ -240,8 +239,7 @@ body {
                         <div class="turn-indicator inactive" id="whiteTurn"></div>
                     </div>
                     <div class="stat-group">
-                        <span class="stat-chip">围: <span id="whiteTerr">0</span></span>
-                        <span class="stat-chip">子: <span id="whiteStones">0</span></span>
+                        <span class="stat-chip">子+围: <span id="whiteTerr">0</span></span>
                     </div>
                 </div>
             </div>
@@ -1204,10 +1202,8 @@ function updateUI() {
     moveNumberEl.textContent = `第 ${state.moveNumber} 手`;
 
     const {blackStones, whiteStones, blackTerr, whiteTerr} = computeLiveTerritory();
-    document.getElementById('blackTerr').textContent = blackTerr;
-    document.getElementById('whiteTerr').textContent = whiteTerr;
-    document.getElementById('blackStones').textContent = blackStones;
-    document.getElementById('whiteStones').textContent = whiteStones;
+    document.getElementById('blackTerr').textContent = blackStones + blackTerr;
+    document.getElementById('whiteTerr').textContent = whiteStones + whiteTerr;
 
     if (!state.gameEnded) {
         statusMessageEl.textContent = `${state.currentPlayer === 1 ? '黑棋' : '白棋'}落子`;
