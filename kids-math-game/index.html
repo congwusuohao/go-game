@@ -257,15 +257,16 @@ body {
   background: white; border-top: 3px solid #FFCC80;
   padding: 10px 16px;
   display: flex; align-items: center; justify-content: center;
-  min-height: 90px; flex-shrink: 0;
+  min-height: 90px; flex-shrink: 0; flex-grow: 0;
   box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+  overflow: visible;
 }
 #answer-mode-area.hidden { display: none; }
 
 /* 默认行：提示居中容器 + 答题按钮(右) */
 #answer-default-row {
   display: flex; align-items: center;
-  width: 100%; height: 100%;
+  width: 100%;
 }
 /* 左侧弹性区包裹提示文字，让文字居中 */
 #answer-prompt-wrap {
@@ -311,7 +312,7 @@ body {
 /* 答题模式：左侧弹性区(键盘+输入) + 右侧关闭按钮 */
 #answer-mode-area {
   display: flex; align-items: center;
-  width: 100%; height: 100%;
+  width: 100%;
 }
 #answer-mode-left {
   display: flex; align-items: center; justify-content: center;
