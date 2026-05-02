@@ -292,27 +292,22 @@ body {
   box-shadow: 0 4px 14px rgba(96,125,139,0.4);
 }
 
-#merge-btn-area.hidden, #merge-btn.hidden { display: none; }
-#merge-btn-area {
+#sub-delete-area.hidden, #sub-delete-btn.hidden { display: none; }
+#sub-delete-area {
   text-align: center;
   position: absolute;
   right: 0;
   bottom: 0;
   z-index: 10;
 }
-#merge-btn {
+#sub-delete-btn {
   background: linear-gradient(135deg,#4CAF50,#2E7D32);
   color: white; border: none; border-radius: 14px;
   padding: 12px 32px; font-size: 20px; font-weight: 900;
   cursor: pointer; box-shadow: 0 4px 16px rgba(76,175,80,0.5);
   transition: transform 0.1s;
 }
-#merge-btn:active { transform: scale(0.94); }
-
-/* 选中合并的列高亮 */
-.cell.selected-for-merge {
-  box-shadow: inset 0 0 0 3px #FF9800, inset 0 0 8px rgba(255,152,0,0.5) !important;
-}
+#sub-delete-btn:active { transform: scale(0.94); }
 
 /* 答题模式：左侧弹性区(键盘+输入) + 右侧关闭按钮 */
 #answer-mode-area {
@@ -510,9 +505,9 @@ canvas#reward-canvas { position: fixed; top:0; left:0; pointer-events:none; z-in
             <div class="col" id="col-right"></div>
           </div>
         </div>
-        <!-- 加法：合并按钮 -->
-        <div id="merge-btn-area" class="hidden">
-          <button id="merge-btn">🔀 合并</button>
+        <!-- 减法：减掉按钮 -->
+        <div id="sub-delete-area" class="hidden">
+          <button id="sub-delete-btn">➖ 减掉</button>
         </div>
       </div>
     </div><!-- end #game-container -->
@@ -592,9 +587,15 @@ const COLOR_SCHEMES = [
 //  状态
 // ═══════════════════════════════════════════════════
 let phase         = 'idle';   // idle | left | right | merge | answer | done
-let mergeSelectMode = false;           // 加法：是否在合并选择模式
-let mergedCols    = new Set();        // 加法：标记要合并的列（col 编号）
-let subtrahendMarked = new Set();     // 减法：标记为减数的格子索引（leftOn 中的）
+let answerState   = false;    // false=未答题状态 true=答题状态
+let a1            = 0, a2 = 0, answer = 0;
+let totalQuestions = 5;
+let currentRound  = 0;
+let correctCount  = 0;
+let questions     = [];
+let streakCount   = 0;
+let isSub         = false;              // 是否为减法题
+let subtrahendMarked = new Set();        // 减法：标记为减数的格子索引（leftOn 中的）
 
 // 格子数据（长度固定 = TOTAL_CELLS = 10）
 let leftOn      = [], rightOn     = [];
@@ -868,32 +869,7 @@ function buildCol(container, initTotal, unlockedCols) {
       const idx = c * PER_COL + r;
       cell.dataset.idx = idx;
       cell.dataset.col = c;
-      let _ignoreClick = 0; // 0=正常, 1=刚双击, 2=刚长按
-      let _longTimer = null;
-
-      // 长按 400ms → toggle全列，同时屏蔽后续单击
-      cell.addEventListener('pointerdown', (e) => {
-        _longTimer = setTimeout(() => {
-          _ignoreClick = 2;
-          selectAllInColumn(c, isLeft ? 'left' : 'right');
-          setTimeout(() => { _ignoreClick = 0; }, 400);
-        }, 400);
-      });
-      cell.addEventListener('pointerup',   () => clearTimeout(_longTimer));
-      cell.addEventListener('pointerout', () => clearTimeout(_longTimer));
-
-      // 单击 / 双击
-      cell.addEventListener('click', (e) => {
-        if (_ignoreClick) return;
-        if (e.detail > 1) {          // 双击
-          _ignoreClick = 1;
-          e.stopPropagation();
-          selectAllInColumn(c, isLeft ? 'left' : 'right');
-          setTimeout(() => { _ignoreClick = 0; }, 400);
-        } else {
-          onCellClick(e);            // 单击
-        }
-      });
+      cell.addEventListener('click', onCellClick);
       subCol.appendChild(cell);
       cellCount++;
     }
@@ -965,7 +941,6 @@ function renderCells() {
   console.log('=== renderCells === leftInitTotal=', leftInitTotal, 'leftAnimal.length=', leftAnimal.length);
   colLeft.querySelectorAll('.cell').forEach((c, i) => {
     if (i >= leftInitTotal) return;
-    const col = Math.floor(i / PER_COL);
     const lit = leftOn[i];
     c.className = 'cell';
     c.classList.add(getLeftCellClass(i, lit));
@@ -976,10 +951,6 @@ function renderCells() {
     // 减法：标记为减数的格子显示红斜杠
     if (isSub && subtrahendMarked.has(i)) {
       c.classList.add('slashed');
-    }
-    // 加法合并选择模式：显示选中列
-    if (mergeSelectMode && mergedCols.has(col)) {
-      c.classList.add('selected-for-merge');
     }
     const emoji = lit ? leftAnimal[i] : '';
     c.textContent = emoji;
@@ -1054,21 +1025,8 @@ function onCellClick(e) {
     return;
   }
 
-  // merge 阶段：进入选择模式，选列后点合并按钮
+  // merge 阶段：任意侧触发合并
   if (phase === 'merge') {
-    if (mergeSelectMode) {
-      // 加法：先选列
-      playClick();
-      // 标记/取消该列
-      if (mergedCols.has(col)) {
-        mergedCols.delete(col);
-      } else {
-        mergedCols.add(col);
-      }
-      renderCells();
-      return;
-    }
-    // 旧逻辑：直接合并（现在是按钮触发）
     playClick();
     doMerge(side, idx, col);
     return;
@@ -1113,35 +1071,6 @@ function countColLit(arr, col, endIdx) {
 }
 
 // 统一列内开关
-// 双击：选中该列同侧全部亮格（toggle 全亮/全灭）
-function selectAllInColumn(col, side) {
-  const arr = side === 'left' ? leftOn : rightOn;
-  const srcTag = side === 'left' ? 'left' : 'right';
-  const start = col * PER_COL;
-  const end = start + PER_COL;
-  // 检查该列是否全亮：是 → 全灭，否 → 全亮
-  const allOn = arr.slice(start, end).every(Boolean);
-  if (allOn) {
-    for (let i = start; i < end; i++) arr[i] = false;
-  } else {
-    for (let i = start; i < end; i++) {
-      arr[i] = true;
-      src[i] = srcTag;
-    }
-  }
-  playClick();
-  renderCells();
-  // 触发检查
-  if (phase === 'left')  checkFill('left',  leftOn,  a1);
-  if (phase === 'right') checkFill('right', rightOn, a2);
-  if (phase === 'sub-minuend') checkFillSubMinuend();
-  if (phase === 'sub-subtrahend') checkFillSubtrahend();
-  if (phase === 'merge') {
-    mergedCols.add(col);
-    renderCells();
-  }
-}
-
 //  点 OFF → 点亮该格及该列以下（向下，不跨列）
 //  点 ON  → 取消该格及该列以上（向上，不跨列）
 function toggleColumn(side, idx) {
@@ -1207,8 +1136,8 @@ function checkFillSubMinuend() {
 function checkFillSubtrahend() {
   if (subtrahendMarked.size === a2) {
     setTimeout(() => {
-      // 减法：直接执行删除动画，然后直接答题（跳过"减掉"按钮）
-      doDeleteMarked();
+      speak('好！点击减掉按钮');
+      beginPhase('sub-delete');
     }, 300);
   }
 }
@@ -1217,7 +1146,8 @@ function checkFillSubtrahend() {
 function doDeleteMarked() {
   if (subtrahendMarked.size === 0) return;
   playClick();
-  // 隐藏减掉按钮（已移除，直接答题）
+  document.getElementById('sub-delete-btn').classList.add('hidden');
+  document.getElementById('sub-delete-area').classList.add('hidden');
   answerModeBtn.style.display = '';
 
   isAnimating = true;
@@ -1279,52 +1209,6 @@ function doDeleteMarked() {
       }
     });
   }, markedArr.length * 80 + 200);
-}
-
-// ═══════════════════════════════════════════════════
-// 加法：从选中的列执行合并（按钮触发）
-function doMergeFromCols(cols) {
-  if (isAnimating || cols.length === 0) return;
-  
-  isAnimating = true;
-  let step = 0;
-  
-  function nextStep() {
-    if (step >= cols.length) {
-      renderCells();
-      isAnimating = false;
-      const total = countOn(leftOn) + countOn(rightOn);
-      if (isMergeDone()) {
-        phase = 'done';
-        renderCells();
-        speak('合并完成，一共' + total + '个，请作答');
-        enterAnswerState();
-      } else {
-        phase = 'merge';
-        mergeSelectMode = true;
-        mergedCols.clear();
-        beginPhase('merge');
-      }
-      return;
-    }
-    
-    const col = cols[step];
-    const leftHas = countColLit(leftOn, col, leftInitTotal) > 0;
-    const rightHas = countColLit(rightOn, col, rightInitTotal) > 0;
-    
-    if (leftHas && rightHas) {
-      doMerge('left', col * PER_COL, col);
-    } else if (leftHas) {
-      doMerge('left', col * PER_COL, col);
-    } else if (rightHas) {
-      doMerge('right', col * PER_COL, col);
-    }
-    
-    step++;
-    setTimeout(nextStep, 500);
-  }
-  
-  nextStep();
 }
 
 // ═══════════════════════════════════════════════════
@@ -1490,18 +1374,13 @@ function beginPhase(p) {
     answerPrompt.textContent = '请选择' + a2 + '个方块';
     renderCells(); speak('太棒啦！现在点亮' + a2 + '个');
   } else if (p === 'merge') {
-    // 加法：进入合并选择模式，显示合并按钮
-    mergeSelectMode = true;
-    mergedCols.clear();
     lh.classList.add('merge-hl'); rh.classList.add('merge-hl');
-    lh.textContent = '选择列'; rh.textContent = '选择列';
-    answerPrompt.textContent = '请选择要合并的列，点「合并」按钮';
+    lh.textContent = '合并'; rh.textContent = '合并';
+    answerPrompt.textContent = '请合并方块';
     answerPrompt.style.color = '';
     answerPrompt.style.fontSize = '';
     leftUnlockedCols  = Math.ceil(leftInitTotal  / PER_COL);
     rightUnlockedCols = Math.ceil(rightInitTotal / PER_COL);
-    document.getElementById('merge-btn-area').classList.remove('hidden');
-    document.getElementById('merge-btn').classList.remove('hidden');
   } else if (p === 'sub-minuend') {
     // ── 减法阶段一：被减数 ──
     lh.classList.add('left-hl'); rh.classList.add('right-hl');
@@ -1924,20 +1803,9 @@ answerCloseBtn.addEventListener('click', () => {
   exitAnswerState();
 });
 
-// 加法"合并"按钮
-document.getElementById('merge-btn').addEventListener('click', () => {
-  if (mergedCols.size === 0) {
-    speak('请先选择要合并的列');
-    return;
-  }
-  playClick();
-  // 关闭选择模式，隐藏按钮
-  mergeSelectMode = false;
-  document.getElementById('merge-btn-area').classList.add('hidden');
-  document.getElementById('merge-btn').classList.add('hidden');
-  // 执行合并（从第一列开始）
-  const cols = [...mergedCols].sort((a,b) => a - b);
-  doMergeFromCols(cols);
+// 减法"删除"按钮
+document.getElementById('sub-delete-btn').addEventListener('click', () => {
+  doDeleteMarked();
 });
 </script>
 </body>
